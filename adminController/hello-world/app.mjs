@@ -10,6 +10,7 @@ import {
 } from "./utils/helper.mjs";
 
 export const lambdaHandler = async (event) => {
+  let client;
   try {
     const method = event.httpMethod;
     const path = event.path;
@@ -17,25 +18,28 @@ export const lambdaHandler = async (event) => {
     const body = event.body;
     const queryParams = event.queryStringParameters || {};
 
+    client = await DBConn();
+    const DB = client.db("10D");
+
     switch (method) {
       case "GET":
         if (path === "/getAllUser") {
-          return await getAllUser(queryParams);
+          return await getAllUser(queryParams, DB);
         } else if (path === "/getUserChainStats") {
-          return await getUserChainStats(queryParams);
+          return await getUserChainStats(queryParams, DB);
         } else if (path === "/searchUser") {
-          return await searchUsers(queryParams);
+          return await searchUsers(queryParams, DB);
         }
       case "PATCH":
         if (path.startsWith("/softDelete/") && pathParams && pathParams.id) {
-          return await softDelete(pathParams.id, body);
+          return await softDelete(pathParams.id, DB);
         } else if (
           path.startsWith("/updateStatus/") &&
           pathParams &&
           pathParams.id &&
           pathParams.status
         ) {
-          return await updateUserStatus(pathParams.id, pathParams.status);
+          return await updateUserStatus(pathParams.id, pathParams.status, DB);
         }
       default:
         return {
@@ -51,14 +55,16 @@ export const lambdaHandler = async (event) => {
       statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
       body: JSON.stringify({ message: "Something Went Wrong", error: error }),
     };
+  } finally {
+    if (client) {
+      await client.close();
+    }
   }
 };
 
-const getAllUser = async (queryParams) => {
+const getAllUser = async (queryParams, DB) => {
   try {
-    const client = await DBConn();
-    const db = client.db("10D");
-    const usersCollection = db.collection("users");
+    const usersCollection = DB.collection("users");
     const totalUsersCount = await usersCollection.countDocuments();
 
     const page = Number(queryParams.page) || 1;
@@ -78,8 +84,6 @@ const getAllUser = async (queryParams) => {
       outReach: user.outReach || 0,
       userBalance: user.userWallet ? user.userWallet.userBalance : 0,
     }));
-
-    await client.close();
 
     return {
       statusCode: 200,
@@ -101,24 +105,20 @@ const getAllUser = async (queryParams) => {
   }
 };
 
-const getUserChainStats = async (queryParams) => {
+const getUserChainStats = async (queryParams, DB) => {
   try {
-    const client = await DBConn();
-    const db = client.db("10D");
-    const totalUsers = await db.collection("users").countDocuments({});
+    const totalUsers = await DB.collection("users").countDocuments({});
     let totalChainInvestment = 0;
-    const chains = await db.collection("chains").find({}).toArray();
+    const chains = await DB.collection("chains").find({}).toArray();
 
     for (const chain of chains) {
       const collectionName = `treeNodes${chain.name}`;
-      const rootNode = await db
+      const rootNode = await DB
         .collection(collectionName)
         .findOne({ _id: chain?.rootNode }, { projection: { totalMembers: 1 } });
       const chainInvestment = rootNode.totalMembers * chain.seedAmount;
       totalChainInvestment += chainInvestment;
     }
-
-    await client.close();
 
     return {
       statusCode: 200,
@@ -129,7 +129,7 @@ const getUserChainStats = async (queryParams) => {
       }),
     };
   } catch (error) {
-    console.log("an error has occured", error);
+    console.log("an error has occurred", error);
     return {
       statusCode: 500,
       body: JSON.stringify({
@@ -140,18 +140,12 @@ const getUserChainStats = async (queryParams) => {
   }
 };
 
-const softDelete = async (userId) => {
+const softDelete = async (userId, DB) => {
   try {
-    // console.log("Received userId:", userId);
     const userIdObjectId = new ObjectId(userId);
-    // console.log("Converted userId to ObjectId:", userIdObjectId);
-
-    const client = await DBConn();
-    const db = client.db("10D");
-    const userToFind = await db
+    const userToFind = await DB
       .collection("users")
       .findOne({ _id: userIdObjectId });
-    // console.log("User found:", userToFind);
 
     if (!userToFind) {
       console.log("User not found");
@@ -165,11 +159,10 @@ const softDelete = async (userId) => {
 
     // Perform soft deleting
     userToFind.isDeleted = true;
-    await db
+    await DB
       .collection("users")
       .updateOne({ _id: userIdObjectId }, { $set: { isDeleted: true } });
     console.log("User soft-deleted successfully");
-    await client.close();
 
     return {
       statusCode: StatusCodes.OK,
@@ -188,15 +181,10 @@ const softDelete = async (userId) => {
   }
 };
 
-const updateUserStatus = async (userId, userStatus) => {
-  // console.log("received userID", userId);
-  // console.log("received userStatus", userStatus);
-
+const updateUserStatus = async (userId, userStatus, DB) => {
   try {
     const userIdObjectId = new ObjectId(userId);
-    const client = await DBConn();
-    const db = client.db("10D");
-    const userToUpdate = await db
+    const userToUpdate = await DB
       .collection("users")
       .findOne({ _id: userIdObjectId });
     if (!userToUpdate) {
@@ -209,11 +197,10 @@ const updateUserStatus = async (userId, userStatus) => {
     }
     // update the status
     userToUpdate.status = userStatus;
-    await db
+    await DB
       .collection("users")
       .updateOne({ _id: userIdObjectId }, { $set: { status: userStatus } });
 
-    await client.close();
     return {
       statusCode: StatusCodes.OK,
       body: JSON.stringify({
@@ -231,18 +218,14 @@ const updateUserStatus = async (userId, userStatus) => {
   }
 };
 
-const searchUsers = async (queryParams) => {
-  const client = await DBConn();
-  const db = client.db("10D");
+// searchUsers is incomplete
+const searchUsers = async (queryParams, DB) => {
   try {
     const page = Number(queryParams.page) || 1;
     const limit = Number(queryParams.limit) || 10;
     const search = queryParams.search;
     const skip = (page - 1) * limit;
-    // debugging
-    console.log("received page", page);
-    console.log("received limit", limit); 
-    console.log("received search", search); 
+
     const pipeline = [
       {
         $lookup: {
@@ -269,9 +252,9 @@ const searchUsers = async (queryParams) => {
       { $limit: limit },
     ];
 
-    const users = await db.collection("users").aggregate(pipeline).toArray(); 
-    const totalUsers = await db.collection("users").countDocuments();
-    console.log("users=>", users); // debugging
+    const users = await DB.collection("users").aggregate(pipeline).toArray();
+    const totalUsers = await DB.collection("users").countDocuments();
+
     return {
       statusCode: StatusCodes.OK,
       body: JSON.stringify({
@@ -291,4 +274,3 @@ const searchUsers = async (queryParams) => {
     };
   }
 };
-
