@@ -19,7 +19,7 @@ Resources:
       Runtime: nodejs20.x
       Environment:
         Variables:
-          MONGODB_URL: ""
+          MONGODB_URL: "mongodb+srv://munirraza0047:3XLqYSVU6ygnbtlc@socketchat.enjbje9.mongodb.net/10D"
       Architectures:
         - x86_64
       Events:

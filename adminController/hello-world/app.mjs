@@ -11,6 +11,7 @@ import {
 } from "./utils/helper.mjs";
 
 export const lambdaHandler = async (event) => {
+  let client;
   try {
     const method = event.httpMethod;
     const path = event.path;
@@ -18,7 +19,7 @@ export const lambdaHandler = async (event) => {
     const body = event.body;
     const queryParams = event.queryStringParameters || {};
 
-    let client = await DBConn();
+     client = await DBConn();
     const DB = client.db("10D");
 
     switch (method) {
