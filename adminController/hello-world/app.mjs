@@ -11,7 +11,6 @@ import {
 } from "./utils/helper.mjs";
 
 export const lambdaHandler = async (event) => {
-  let client;
   try {
     const method = event.httpMethod;
     const path = event.path;
@@ -19,7 +18,7 @@ export const lambdaHandler = async (event) => {
     const body = event.body;
     const queryParams = event.queryStringParameters || {};
 
-    client = await DBConn();
+    let client = await DBConn();
     const DB = client.db("10D");
 
     switch (method) {
@@ -140,7 +139,6 @@ const softDelete = async (userId, DB) => {
     };
   }
 
-  // Perform soft deleting
   userToFind.isDeleted = true;
   await DB.collection("users").updateOne(
     { _id: userIdObjectId },
@@ -184,7 +182,7 @@ const updateUserStatus = async (userId, userStatus, DB) => {
   };
 };
 
-// searchUsers is incomplete
+// searchUsers is incomplete => as per usama
 const searchUsers = async (queryParams, DB) => {
   const page = Number(queryParams.page) || 1;
   const limit = Number(queryParams.limit) || 10;
