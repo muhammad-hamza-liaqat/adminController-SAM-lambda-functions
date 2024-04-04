@@ -7,6 +7,7 @@ import {
   HTTPResponse,
   DBConn,
   catchError,
+  catchTryAsyncErrors
 } from "./utils/helper.mjs";
 
 export const lambdaHandler = async (event) => {
@@ -24,22 +25,22 @@ export const lambdaHandler = async (event) => {
     switch (method) {
       case "GET":
         if (path === "/getAllUser") {
-          return await getAllUser(queryParams, DB);
+          return await catchTryAsyncErrors(getAllUser)(queryParams, DB);
         } else if (path === "/getUserChainStats") {
-          return await getUserChainStats(queryParams, DB);
+          return await catchTryAsyncErrors(getUserChainStats)(queryParams, DB);
         } else if (path === "/searchUser") {
-          return await searchUsers(queryParams, DB);
+          return await catchTryAsyncErrors(searchUsers)(queryParams, DB);
         }
       case "PATCH":
         if (path.startsWith("/softDelete/") && pathParams && pathParams.id) {
-          return await softDelete(pathParams.id, DB);
+          return await catchTryAsyncErrors(softDelete)(pathParams.id, DB);
         } else if (
           path.startsWith("/updateStatus/") &&
           pathParams &&
           pathParams.id &&
           pathParams.status
         ) {
-          return await updateUserStatus(pathParams.id, pathParams.status, DB);
+          return await catchTryAsyncErrors(updateUserStatus)(pathParams.id, pathParams.status, DB);
         }
       default:
         return {
