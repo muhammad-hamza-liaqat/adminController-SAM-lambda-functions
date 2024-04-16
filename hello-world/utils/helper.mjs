@@ -1,5 +1,3 @@
-// utils/helper.mjs
-
 import StatusCodes from "http-status-codes";
 import { MongoClient } from "mongodb";
 
@@ -16,7 +14,6 @@ export const DBConn = async () => {
   }
 };
 
-// Error Handling
 export class HTTPError extends Error {
   code;
   details;
@@ -54,4 +51,23 @@ export const catchError = async (error) => {
     statusCode,
     body: JSON.stringify({ message: errorMessage, error: error.message })
   };
+};
+
+export const catchTryAsyncErrors = (action) => async (queryParams, DB) => {
+  try {
+    const result = await action(queryParams, DB);
+    return result;
+  } catch (error) {
+    console.error("catchAsyncErrors ==>", error);
+    const err = new HTTPError(
+      "Internal Server Error",
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      error
+    );
+
+    return {
+      statusCode: StatusCodes.INTERNAL_SERVER_ERROR,
+      body: JSON.stringify(err),
+    };
+  }
 };
